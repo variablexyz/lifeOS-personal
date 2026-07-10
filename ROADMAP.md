@@ -219,34 +219,65 @@ in `notify.ts`), so no migration or data loss for existing reminders.
 
 ---
 
-## Planned — Phase 13/14 — Google sign-in + cross-device sync
+## Phase 13 — Google sign-in (foundation) *(complete)*
 
-Scoped but **not yet started** — this is a genuinely different kind of
-project from everything else in LifeOS so far, because the app has been
-100% local (IndexedDB via Dexie, zero backend, opens as a single offline
-file). Splitting it in two:
+Identity only — data sync is still Phase 14, below. `src/lib/firebase.ts`
+initializes Firebase with the user's project config; it's only ever
+reached via a dynamic `import()` (see `src/lib/auth.ts`), so the SDK never
+loads at all when LifeOS is opened as a plain local file — sign-in needs a
+real http(s) origin anyway, and this keeps the offline/`file://` path
+completely unaffected. Settings gained an **Account** section: a
+"Sign in with Google" button when signed out, name/email + "Sign out" when
+signed in, or an explanatory note if viewing the local file build.
 
-**Phase 13 — foundation (hosting + Google sign-in, no data sync yet).**
-Deploy LifeOS to a real URL (Google OAuth needs http/https, not `file://`)
-and wire up Google sign-in via Firebase Auth. Data stays local per-device
-at this stage — sign-in is identity only.
+Hosting: moved off `file://` via a real git repo + Vercel (auto-deploy on
+`git push`, since the whole app is one static `dist/index.html` from
+`vite-plugin-singlefile`) rather than Firebase Hosting — Firebase is only
+used for Auth here. Firebase's authorized-domains allowlist needs the
+Vercel URL added under Authentication → Settings for sign-in to work
+there.
 
-**Phase 14 — Firestore sync (the harder half).** Mirror tasks/events/
-habits/reminders into Firestore so the same data shows up across devices,
-with an offline queue and a conflict-resolution strategy, without breaking
-the local-first/offline behavior that exists today.
+---
 
-**Blocked on the user for Phase 13** — none of this can be built/verified
-until these exist, since they require an external account only the user
-has:
-1. A Firebase project (console.firebase.google.com), with the **Google**
-   sign-in provider enabled under Authentication.
-2. A hosting choice for the real URL — Firebase Hosting is the natural
-   pairing (free tier, one CLI command), but Vercel/Netlify/GitHub Pages
-   all work too.
-3. The web app's Firebase config object (`apiKey`, `authDomain`,
-   `projectId`, `storageBucket`, `messagingSenderId`, `appId`) from
-   Project settings → General → "Your apps".
+## Phase 13.1 — Reminder & mobile polish *(complete)*
+
+Three fixes from real usage:
+
+- **Reminder picker had too many visible options and forced anchoring.**
+  The preset grid (7 chips) is now a single compact dropdown. More
+  importantly, reminders no longer have to be relative to the item's due/
+  start time — picking "Set a specific time…" opens a free date+time
+  picker for a genuinely standalone reminder, which now also works on
+  tasks that don't have a date set at all. A reminder is either
+  `{ offsetMin }` (relative to the anchor, as before) or `{ atISO }`
+  (a free, independent moment) — `notify.ts`'s `buildSchedule` handles
+  both, including a task with zero anchor and only free reminders.
+- **Settings "Default reminder" row looked broken.** It was squeezing a
+  label, description, and a dropdown onto one line with no wrapping logic
+  that actually worked (the description could shrink to nothing rather
+  than the row wrapping). It now stacks — label/description on top, the
+  select full-width underneath — via a `.set-row.stack` modifier.
+  Available for any future settings row that needs the same treatment.
+- **Task/event detail fields overlapped on narrow screens.** `.field-row`
+  (due date + project, scheduled date + time + length, event date +
+  start + end) used `flex: 1` with no minimum width and no wrapping, so on
+  a phone-width viewport the native date/time input controls couldn't
+  shrink enough and the row overflowed. Fixed generically for every sheet
+  that uses `.field-row`: fields now wrap (`flex-wrap: wrap`) with a
+  130px minimum each, and a `.field-sm` modifier (used for the task
+  Length field) opts a field out of that minimum for intentionally narrow
+  fields — no per-screen-size media query needed, it just reflows.
+
+---
+
+## Planned — Phase 14 — Firestore sync
+
+Not yet started. Mirror tasks/events/habits/reminders into Firestore so
+the same data shows up across devices signed into the same Google
+account, with an offline queue and a conflict-resolution strategy,
+without breaking the local-first/offline behavior that exists today. This
+is the harder half of the original login request — Phase 13 only handled
+identity.
 
 ---
 

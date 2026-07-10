@@ -653,10 +653,19 @@ h3 {
 }
 .field-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .field-row .field {
-  flex: 1;
+  flex: 1 1 130px;
+  min-width: 130px;
+}
+.field-row .field.field-sm {
+  flex: 0 1 90px;
+  min-width: 78px;
+}
+.field-row .field select {
+  min-width: 0;
 }
 .subtask-add {
   display: flex;
@@ -1335,6 +1344,17 @@ h3 {
   gap: 12px;
   padding: 10px 0;
 }
+.set-row.stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.set-row.stack .set-select {
+  width: 100%;
+  flex-shrink: 1;
+  padding: 10px 12px;
+  font-size: 14px;
+}
 .set-row.sub {
   padding: 8px 0 8px 4px;
 }
@@ -1462,12 +1482,34 @@ h3 {
 .rem-pill b {
   font-variant-numeric: tabular-nums;
 }
+.rem-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.rem-select {
+  width: 100%;
+}
+.rem-datetime-input {
+  width: 100%;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  outline: none;
+  transition: border-color var(--t-fast);
+}
+.rem-datetime-input:focus {
+  border-color: var(--accent);
+}
 .rem-msg-input {
   width: 100%;
   font-size: 13px;
   font-weight: 600;
   padding: 9px 12px;
-  margin-top: 8px;
   border: 1.5px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--bg);

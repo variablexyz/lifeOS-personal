@@ -224,7 +224,7 @@ export default function Settings() {
                 <Toggle on={prefs.habits} onClick={() => patch({ habits: !prefs.habits })} label="Habit reminders" />
               </div>
 
-              <div className="set-row">
+              <div className="set-row stack">
                 <div className="set-txt">
                   <div className="st">Default reminder</div>
                   <div className="sm">Applied to timed items you haven't customized</div>

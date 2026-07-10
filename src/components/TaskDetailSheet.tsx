@@ -187,7 +187,7 @@ export default function TaskDetailSheet() {
               }
             />
           </div>
-          <div className="field" style={{ maxWidth: 90 }}>
+          <div className="field field-sm">
             <label>Length</label>
             <input
               type="number"

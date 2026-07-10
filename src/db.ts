@@ -9,7 +9,8 @@ export type Priority = 0 | 1 | 2 | 3; // 0 none · 1 low · 2 medium · 3 high
     Legacy data may still hold plain numbers — normalize with
     notify.ts's normalizeReminders()/effectiveReminders() before use. */
 export interface ReminderEntry {
-  offsetMin: number;
+  offsetMin?: number; // minutes before anchor (relative mode) — omit when atISO is set
+  atISO?: string; // absolute fire time, independent of the item's anchor (free/custom mode)
   message?: string;
 }
 export type StoredReminder = number | ReminderEntry;

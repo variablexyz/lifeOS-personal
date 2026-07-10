@@ -1,51 +1,46 @@
 import { useState } from "react";
 import { REMINDER_PRESETS } from "../lib/notify";
-import { timeLabel } from "../lib/dates";
 import type { ReminderEntry } from "../db";
 
 /* Shared reminder composer — used by ReminderSheet (editing an existing
-   item) and QuickAddSheet (setting reminders at creation time, before
-   the item exists). Pick a preset to fill the time field with the right
-   clock time (no mental math), fine-tune it if needed, optionally add a
-   custom message, then Add. Offsets are minutes before the anchor; a
-   negative offset means "after". */
+   item) and QuickAddSheet (setting reminders at creation time). Kept
+   deliberately light on visible options: one dropdown (a few common
+   relative presets + "Set a specific time…"), not a wall of chips.
+   Picking "Set a specific time…" reveals a free date+time picker that
+   is NOT anchored to the item's due/start time at all — you can pick
+   any moment, even if the task/event has no date set yet. */
 
-function fmtOffset(min: number): string {
-  if (min === 0) return "At the time";
-  const after = min < 0;
-  const abs = Math.abs(min);
-  const rel = after ? "after" : "before";
-  if (abs % 1440 === 0) {
-    const d = abs / 1440;
-    return `${d} day${d > 1 ? "s" : ""} ${rel}`;
-  }
-  if (abs % 60 === 0) {
-    const h = abs / 60;
-    return `${h} hour${h > 1 ? "s" : ""} ${rel}`;
-  }
-  return `${abs} min ${rel}`;
-}
+const CUSTOM = "custom";
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-function hhmmAt(anchorMs: number, offsetMin: number): string {
-  const d = new Date(anchorMs - offsetMin * 60000);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function toLocalValue(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Nearest offset (± up to 12h) that lands the anchor's day-clock at `hhmm`. */
-function timeToOffset(anchorMs: number, hhmm: string): number {
-  const [hh, mm] = hhmm.split(":").map(Number);
-  if (Number.isNaN(hh) || Number.isNaN(mm)) return 0;
-  const picked = new Date(anchorMs);
-  picked.setHours(hh, mm, 0, 0);
-  let diff = anchorMs - picked.getTime();
-  const DAY = 24 * 60 * 60 * 1000;
-  if (diff > DAY / 2) diff -= DAY;
-  if (diff < -DAY / 2) diff += DAY;
-  return Math.round(diff / 60000);
+/** A sensible default for the free time picker: an hour from the anchor
+    (or from now, if there's no anchor), rounded to the next 5 minutes. */
+function defaultLocalValue(baseMs: number): string {
+  const d = new Date(baseMs + 60 * 60000);
+  const rem = d.getMinutes() % 5;
+  if (rem) d.setMinutes(d.getMinutes() + (5 - rem));
+  return toLocalValue(d);
+}
+
+function fmtEntry(anchorMs: number | null, r: ReminderEntry): string {
+  if (r.atISO) {
+    const d = new Date(r.atISO);
+    const sameDay = d.toDateString() === new Date().toDateString();
+    const day = sameDay ? "Today" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return `${day}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const min = r.offsetMin ?? 0;
+  const label = min === 0 ? "At the time" : min < 0 ? `${Math.abs(min)} min after` : `${min} min before`;
+  if (anchorMs === null) return label;
+  const t = new Date(anchorMs - min * 60000);
+  return `${label} (${pad(t.getHours())}:${pad(t.getMinutes())})`;
 }
 
 export default function ReminderPicker({
@@ -58,66 +53,67 @@ export default function ReminderPicker({
   onChange: (v: ReminderEntry[]) => void;
 }) {
   const anchorMs = anchorISO ? new Date(anchorISO).getTime() : null;
-  const [time, setTime] = useState(() => (anchorMs !== null ? hhmmAt(anchorMs, 0) : "09:00"));
+  const [preset, setPreset] = useState<string>(anchorMs !== null ? String(REMINDER_PRESETS[2]?.min ?? 10) : CUSTOM);
+  const [customAt, setCustomAt] = useState(() => defaultLocalValue(anchorMs ?? Date.now()));
   const [message, setMessage] = useState("");
 
-  if (anchorISO === null || anchorMs === null) {
-    return (
-      <p className="qa-hint" style={{ marginTop: 0 }}>
-        Add a date or time first, then you can set reminders.
-      </p>
-    );
-  }
+  const useCustom = anchorMs === null || preset === CUSTOM;
 
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
 
-  const addAt = (offsetMin: number) => {
+  const add = () => {
     const msg = message.trim() || undefined;
-    const exists = value.some((v) => v.offsetMin === offsetMin && v.message === msg);
-    if (!exists) {
-      onChange([...value, { offsetMin, message: msg }].sort((a, b) => a.offsetMin - b.offsetMin));
+    let entry: ReminderEntry;
+    if (useCustom) {
+      if (!customAt) return;
+      entry = { atISO: `${customAt}:00`, message: msg };
+    } else {
+      entry = { offsetMin: Number(preset), message: msg };
     }
+    onChange([...value, entry]);
     setMessage("");
   };
 
   return (
     <>
-      <p className="qa-hint" style={{ marginTop: 0 }}>
-        Anchored to {timeLabel(anchorISO)} on its day — tap a preset to fill the time, or set it directly.
-      </p>
-
-      <div className="rem-grid">
-        {REMINDER_PRESETS.map((p) => (
-          <button
-            key={p.min}
-            type="button"
-            className="rem-chip"
-            onClick={() => setTime(hhmmAt(anchorMs, p.min))}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="subtask-add" style={{ marginTop: 10 }}>
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-        <button
-          type="button"
-          className="btn ghost"
-          style={{ padding: "9px 14px" }}
-          onClick={() => addAt(timeToOffset(anchorMs, time))}
+      <div className="rem-compose">
+        <select
+          className="set-select rem-select"
+          value={anchorMs === null ? CUSTOM : preset}
+          onChange={(e) => setPreset(e.target.value)}
+          disabled={anchorMs === null}
         >
-          Add
+          {anchorMs !== null &&
+            REMINDER_PRESETS.map((p) => (
+              <option key={p.min} value={String(p.min)}>
+                {p.label}
+              </option>
+            ))}
+          <option value={CUSTOM}>Set a specific time…</option>
+        </select>
+
+        {useCustom && (
+          <input
+            type="datetime-local"
+            className="rem-datetime-input"
+            value={customAt}
+            onChange={(e) => setCustomAt(e.target.value)}
+          />
+        )}
+
+        <input
+          type="text"
+          className="rem-msg-input"
+          placeholder="Custom message (optional) — defaults to the title"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+        />
+
+        <button type="button" className="btn ghost" style={{ width: "100%" }} onClick={add}>
+          Add reminder
         </button>
       </div>
-      <input
-        type="text"
-        className="rem-msg-input"
-        placeholder="Custom message (optional) — defaults to the title"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && addAt(timeToOffset(anchorMs, time))}
-      />
 
       {value.length > 0 && (
         <div className="rem-selected">
@@ -125,12 +121,11 @@ export default function ReminderPicker({
             <button
               type="button"
               className="qa-chip rem-pill"
-              key={`${r.offsetMin}-${r.message ?? ""}-${i}`}
+              key={i}
               onClick={() => remove(i)}
-              aria-label={`Remove reminder at ${hhmmAt(anchorMs, r.offsetMin)}`}
+              aria-label="Remove reminder"
             >
-              {fmtOffset(r.offsetMin)}
-              <b>{hhmmAt(anchorMs, r.offsetMin)}</b>
+              {fmtEntry(anchorMs, r)}
               {r.message && <i className="rem-pill-msg">&ldquo;{r.message}&rdquo;</i>}
               <span aria-hidden="true">×</span>
             </button>

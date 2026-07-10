@@ -178,13 +178,18 @@ export function buildSchedule(input: ScheduleInput): Reminder[] {
     for (const t of tasks) {
       if (t.done) continue;
       const anchor = taskAnchorISO(t);
-      if (!anchor) continue;
-      const anchorMs = isoMs(anchor);
+      const anchorMs = anchor ? isoMs(anchor) : null;
       for (const r of effectiveReminders(t.reminders, prefs)) {
+        const at = r.atISO
+          ? isoMs(r.atISO)
+          : anchorMs !== null
+          ? anchorMs - (r.offsetMin ?? 0) * 60000
+          : null;
+        if (at === null) continue;
         add({
-          id: `task-${t.id}-${r.offsetMin}-${r.message ?? ""}`,
-          at: anchorMs - r.offsetMin * 60000,
-          title: r.offsetMin === 0 ? "Time for a task" : "Coming up",
+          id: `task-${t.id}-${r.atISO ?? r.offsetMin}-${r.message ?? ""}`,
+          at,
+          title: r.atISO ? "Reminder" : r.offsetMin === 0 ? "Time for a task" : "Coming up",
           body: r.message?.trim() || t.title,
           tag: `task-${t.id}`,
         });
@@ -197,10 +202,11 @@ export function buildSchedule(input: ScheduleInput): Reminder[] {
     for (const ev of events) {
       const anchorMs = isoMs(ev.start);
       for (const r of effectiveReminders(ev.reminders, prefs)) {
+        const at = r.atISO ? isoMs(r.atISO) : anchorMs - (r.offsetMin ?? 0) * 60000;
         add({
-          id: `event-${ev.id}-${r.offsetMin}-${r.message ?? ""}`,
-          at: anchorMs - r.offsetMin * 60000,
-          title: r.offsetMin === 0 ? "Now" : "Coming up",
+          id: `event-${ev.id}-${r.atISO ?? r.offsetMin}-${r.message ?? ""}`,
+          at,
+          title: r.atISO ? "Reminder" : r.offsetMin === 0 ? "Now" : "Coming up",
           body: r.message?.trim() || ev.title,
           tag: `event-${ev.id}`,
         });

@@ -6,8 +6,9 @@ import { effectiveReminders, loadNotifPrefs, taskAnchorISO } from "../lib/notify
 import ReminderPicker from "./ReminderPicker";
 
 /* Per-item reminder picker — opens for a task or event, edits its
-   reminders (each an offset in minutes before the anchor time, plus an
-   optional custom message). */
+   reminders. Each reminder is either relative to the item's anchor time
+   (offsetMin) or a fully free, standalone time (atISO) — see
+   ReminderPicker for the composer UI. */
 export default function ReminderSheet() {
   const { reminderTarget, openReminders, showToast } = useUI();
   const kind = reminderTarget?.kind;
@@ -62,12 +63,12 @@ export default function ReminderSheet() {
         <ReminderPicker anchorISO={anchorISO} value={sel} onChange={setSel} />
 
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          {anchorISO && sel.length > 0 && (
+          {sel.length > 0 && (
             <button className="btn ghost" style={{ flex: 1 }} onClick={() => setSel([])}>
               Clear
             </button>
           )}
-          <button className="btn primary" style={{ flex: 2 }} onClick={save} disabled={!anchorISO}>
+          <button className="btn primary" style={{ flex: 2 }} onClick={save}>
             Done
           </button>
         </div>
